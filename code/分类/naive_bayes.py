@@ -1,10 +1,21 @@
 """
 高斯朴素贝叶斯分类算法实现
-仅使用numpy实现，不依赖sklearn
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.metrics import confusion_matrix, accuracy_score
+import seaborn as sns
 from collections import Counter
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import OUTPUT_DIR, PLOT_PARAMS
+
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
+plt.rcParams['axes.unicode_minus'] = False
 
 class MyGaussianNB:
     """
@@ -235,23 +246,135 @@ class MyGaussianNB:
             probabilities[i] = posteriors
         
         return probabilities
+    
+    def plot_results(self, X_train, y_train, X_test, y_test, predictions, label_mapping=None, save_path=None):
+        """
+        可视化朴素贝叶斯分类结果
+        
+        Args:
+            X_train: 训练集特征
+            y_train: 训练集标签
+            X_test: 测试集特征
+            y_test: 测试集真实标签
+            predictions: 预测结果
+            label_mapping: 标签映射字典
+            save_path: 保存路径
+        """
+        # 计算准确率
+        accuracy = accuracy_score(y_test, predictions)
+        
+        # 生成混淆矩阵
+        cm = confusion_matrix(y_test, predictions)
+        
+        # 获取类别名称
+        if label_mapping:
+            reverse_mapping = {v: k for k, v in label_mapping.items()}
+            class_names = [reverse_mapping[i] for i in range(len(label_mapping))]
+        else:
+            class_names = [f'类别{i}' for i in range(len(self.classes))]
+        
+        # 创建图形
+        fig = plt.figure(figsize=(16, 6))
+        
+        # 子图1: 混淆矩阵
+        ax1 = plt.subplot(1, 2, 1)
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Greens', 
+                   xticklabels=class_names, yticklabels=class_names, ax=ax1)
+        ax1.set_title(f'朴素贝叶斯混淆矩阵\n准确率: {accuracy:.4f}', 
+                     fontsize=14, fontweight='bold')
+        ax1.set_xlabel('预测标签', fontsize=12)
+        ax1.set_ylabel('真实标签', fontsize=12)
+        
+        # 子图2: 降维可视化
+        ax2 = plt.subplot(1, 2, 2)
+        
+        # 合并训练和测试数据进行PCA
+        X_combined = np.vstack([X_train, X_test])
+        pca = PCA(n_components=2, random_state=42)
+        X_combined_2d = pca.fit_transform(X_combined)
+        
+        # 分离训练和测试数据
+        X_train_2d = X_combined_2d[:len(X_train)]
+        X_test_2d = X_combined_2d[len(X_train):]
+        
+        # 绘制训练数据（小点）
+        ax2.scatter(X_train_2d[:, 0], X_train_2d[:, 1], c=y_train,
+                   cmap='tab10', alpha=0.3, s=20, label='训练集', edgecolors='none')
+        
+        # 绘制测试数据（大点）
+        scatter = ax2.scatter(X_test_2d[:, 0], X_test_2d[:, 1], c=predictions,
+                            cmap='tab10', alpha=0.8, s=100, 
+                            edgecolors='black', linewidths=2, label='测试集（预测）')
+        
+        # 标记错误分类的点
+        errors = y_test != predictions
+        if np.any(errors):
+            ax2.scatter(X_test_2d[errors, 0], X_test_2d[errors, 1],
+                       marker='x', s=200, c='red', linewidths=3, label='分类错误', zorder=5)
+        
+        ax2.set_title(f'朴素贝叶斯分类可视化\n错误数: {np.sum(errors)}/{len(y_test)}',
+                     fontsize=14, fontweight='bold')
+        ax2.set_xlabel('第一主成分', fontsize=12)
+        ax2.set_ylabel('第二主成分', fontsize=12)
+        ax2.legend(fontsize=10, loc='best')
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # 保存图片
+        if save_path:
+            plt.savefig(save_path, dpi=PLOT_PARAMS['dpi'], bbox_inches='tight')
+            print(f"\n图片已保存到: {save_path}")
+        else:
+            default_path = os.path.join(OUTPUT_DIR, '朴素贝叶斯分类结果.png')
+            plt.savefig(default_path, dpi=PLOT_PARAMS['dpi'], bbox_inches='tight')
+            print(f"\n图片已保存到: {default_path}")
+        
+        plt.show()
+        plt.close()
 
 # 测试代码
 if __name__ == "__main__":
-    # 创建测试数据
-    np.random.seed(42)
-    X_train = np.random.randn(100, 4)
-    y_train = np.random.randint(0, 3, 100)
-    X_test = np.random.randn(20, 4)
+    from sklearn.model_selection import train_test_split
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from data_preprocessing import DataPreprocessor
+    
+    print("="*60)
+    print("高斯朴素贝叶斯分类算法演示")
+    print("="*60)
+    
+    # 加载数据
+    print("\n正在加载数据...")
+    preprocessor = DataPreprocessor()
+    data = preprocessor.preprocess_pipeline()
+    X = data['X_normalized']
+    y = data['y_encoded']
+    label_mapping = data['label_mapping']
+    
+    # 分割数据
+    print("\n分割训练集和测试集...")
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    print(f"训练集: {X_train.shape}, 测试集: {X_test.shape}")
     
     # 训练朴素贝叶斯模型
+    print("\n正在训练朴素贝叶斯模型...")
     gnb = MyGaussianNB()
     gnb.fit(X_train, y_train)
     
     # 预测
     predictions = gnb.predict(X_test)
-    probabilities = gnb.predict_proba(X_test)
     
-    print(f"预测结果: {predictions}")
-    print(f"预测概率形状: {probabilities.shape}")
-    print(f"概率和: {np.sum(probabilities, axis=1)}")  # 应该都接近1
+    # 计算准确率
+    accuracy = accuracy_score(y_test, predictions)
+    print(f"\n朴素贝叶斯准确率: {accuracy:.4f}")
+    
+    # 生成可视化图
+    print("\n正在生成可视化图...")
+    gnb.plot_results(X_train, y_train, X_test, y_test, predictions, label_mapping)
+    
+    print("\n分类完成！")
+    print("="*60)

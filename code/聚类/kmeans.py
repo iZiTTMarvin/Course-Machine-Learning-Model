@@ -1,10 +1,19 @@
 """
 K-Means聚类算法实现
-仅使用numpy实现，不依赖sklearn
 """
 
 import numpy as np
-from config import KMEANS_PARAMS
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import KMEANS_PARAMS, OUTPUT_DIR, PLOT_PARAMS
+
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
+plt.rcParams['axes.unicode_minus'] = False
 
 class MyKMeans:
     """
@@ -234,21 +243,112 @@ class MyKMeans:
         """
         self.fit(X)
         return self.labels
+    
+    def plot_clusters(self, X, y_true=None, save_path=None):
+        """
+        可视化聚类结果
+        
+        Args:
+            X: 数据矩阵
+            y_true: 真实标签（可选）
+            save_path: 保存路径（可选）
+        """
+        # 使用PCA降维到2D
+        pca = PCA(n_components=2, random_state=42)
+        X_2d = pca.fit_transform(X)
+        
+        # 创建图形
+        if y_true is not None:
+            fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        else:
+            fig, axes = plt.subplots(1, 1, figsize=(10, 8))
+            axes = [axes]
+        
+        # 绘制K-Means结果
+        ax = axes[0] if y_true is not None else axes[0]
+        scatter = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=self.labels, 
+                           cmap='tab10', alpha=0.6, s=30, edgecolors='none')
+        
+        # 绘制质心
+        centroids_2d = pca.transform(self.centroids)
+        ax.scatter(centroids_2d[:, 0], centroids_2d[:, 1],
+                  c='red', marker='X', s=300, linewidths=3,
+                  edgecolors='black', label='质心', zorder=5)
+        
+        ax.set_title(f'K-Means聚类结果\n(K={self.n_clusters}, 惯性={self.inertia:.2f})',
+                    fontsize=14, fontweight='bold')
+        ax.set_xlabel('第一主成分', fontsize=12)
+        ax.set_ylabel('第二主成分', fontsize=12)
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+        
+        # 添加颜色条
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('簇ID', fontsize=10)
+        
+        # 如果有真实标签，绘制对比图
+        if y_true is not None:
+            ax2 = axes[1]
+            scatter2 = ax2.scatter(X_2d[:, 0], X_2d[:, 1], c=y_true,
+                                 cmap='tab10', alpha=0.6, s=30, edgecolors='none')
+            ax2.set_title('真实标签分布', fontsize=14, fontweight='bold')
+            ax2.set_xlabel('第一主成分', fontsize=12)
+            ax2.set_ylabel('第二主成分', fontsize=12)
+            ax2.grid(True, alpha=0.3)
+            
+            cbar2 = plt.colorbar(scatter2, ax=ax2)
+            cbar2.set_label('真实类别', fontsize=10)
+            
+            # 计算并显示评估指标
+            ari = adjusted_rand_score(y_true, self.labels)
+            nmi = normalized_mutual_info_score(y_true, self.labels)
+            fig.suptitle(f'ARI: {ari:.4f}, NMI: {nmi:.4f}',
+                       fontsize=16, fontweight='bold', y=1.02)
+            print(f"\n评估指标: ARI={ari:.4f}, NMI={nmi:.4f}")
+        
+        plt.tight_layout()
+        
+        # 保存图片
+        if save_path:
+            plt.savefig(save_path, dpi=PLOT_PARAMS['dpi'], bbox_inches='tight')
+            print(f"图片已保存到: {save_path}")
+        else:
+            default_path = os.path.join(OUTPUT_DIR, 'K-Means聚类结果.png')
+            plt.savefig(default_path, dpi=PLOT_PARAMS['dpi'], bbox_inches='tight')
+            print(f"图片已保存到: {default_path}")
+        
+        plt.show()
+        plt.close()
 
 # 测试代码
 if __name__ == "__main__":
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     # 使用预处理后的数据测试
     from data_preprocessing import DataPreprocessor
+    
+    print("="*60)
+    print("K-Means聚类算法演示")
+    print("="*60)
     
     # 加载和预处理数据
     preprocessor = DataPreprocessor()
     data = preprocessor.preprocess_pipeline()
     X = data['X_normalized']
+    y_true = data['y_encoded']
     
     # 执行K-Means聚类
+    print("\n正在执行K-Means聚类...")
     kmeans = MyKMeans(**KMEANS_PARAMS)
     labels = kmeans.fit_predict(X)
     
     print(f"\n聚类结果:")
     print(f"簇标签分布: {np.bincount(labels)}")
-    print(f"聚类完成！")
+    
+    # 生成可视化图
+    print("\n正在生成可视化图...")
+    kmeans.plot_clusters(X, y_true)
+    
+    print("\n聚类完成！")
+    print("="*60)

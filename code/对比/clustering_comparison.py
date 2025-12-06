@@ -9,8 +9,18 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 import seaborn as sns
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import DBSCAN_PARAMS, PLOT_PARAMS, OUTPUT_DIR
-from kmeans import MyKMeans
+from 聚类.kmeans import MyKMeans
+from 聚类.dbscan import MyDBSCAN  # 使用手写的DBSCAN
+# from sklearn.cluster import DBSCAN  # 可选：使用sklearn的DBSCAN
+
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']  # 用来正常显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 class ClusteringComparison:
     """聚类算法对比类"""
@@ -69,10 +79,10 @@ class ClusteringComparison:
         Returns:
             dict: DBSCAN结果
         """
-        print("\n=== 应用DBSCAN聚类 ===")
+        print("\n=== 应用DBSCAN聚类 ===\n使用手写实现的MyDBSCAN")
         
-        # 创建并训练DBSCAN模型
-        self.dbscan_model = DBSCAN(**DBSCAN_PARAMS)
+        # 创建并训练DBSCAN模型（使用手写实现）
+        self.dbscan_model = MyDBSCAN(**DBSCAN_PARAMS)
         dbscan_labels = self.dbscan_model.fit_predict(X)
         
         # 处理噪声点（标签为-1的点）
@@ -137,6 +147,11 @@ class ClusteringComparison:
             dbscan_result: DBSCAN结果
         """
         plt.style.use(PLOT_PARAMS['style'])
+        
+        # 在style之后重新设置中文字体（关键！）
+        plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
+        plt.rcParams['axes.unicode_minus'] = False
+        
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
         
         # 定义颜色映射
@@ -204,11 +219,11 @@ class ClusteringComparison:
             cbar3.set_label('簇')
         
         plt.tight_layout()
-        plt.savefig(f'{OUTPUT_DIR}/clustering_comparison.png',
-                    dpi=PLOT_PARAMS['dpi'], bbox_inches='tight')
+        save_path = f'{OUTPUT_DIR}/聚类算法对比.png'
+        plt.savefig(save_path, dpi=PLOT_PARAMS['dpi'], bbox_inches='tight')
         plt.show()
 
-        print(f"聚类对比图已保存到: {OUTPUT_DIR}/clustering_comparison.png")
+        print(f"聚类对比图已保存到: {save_path}")
     
     def compare_algorithms(self, X, y_true):
         """
@@ -247,6 +262,9 @@ class ClusteringComparison:
 
 # 测试代码
 if __name__ == "__main__":
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from data_preprocessing import DataPreprocessor
     
     # 加载和预处理数据
